@@ -1,6 +1,6 @@
 """Analyze resident requests and return a structured result."""
 
-from natib.models import Request, RequestAnalysis, Urgency
+from nativ.models import Request, RequestAnalysis, Urgency
 
 
 def analyze_request(request: Request) -> RequestAnalysis:

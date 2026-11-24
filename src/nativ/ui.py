@@ -4,8 +4,8 @@ from datetime import datetime
 
 import gradio as gr
 
-from natib.analysis import analyze_request
-from natib.models import MissingField, Request, RequestAnalysis
+from nativ.analysis import analyze_request
+from nativ.models import MissingField, Request, RequestAnalysis
 
 
 _FIELD_LABELS = {
