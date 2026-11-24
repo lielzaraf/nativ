@@ -9,6 +9,10 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "gradio>=6.31.0",
+    "openai>=3.49.0",
+    "pydantic>=2.14.3",
+    "python-dotenv>=1.2.4",
+    "truststore>=0.10.5",
 ]
 
 [project.scripts]
