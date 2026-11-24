@@ -5,17 +5,27 @@
 | מודול | אחריות | מה נכנס | מה יוצא |
 |---|---|---|---|
 | `ui.py` | ממשק Gradio: תיבת טקסט לפנייה והצגת הסיכום | טקסט מהתושב | תצוגה בלבד |
-| `models.py` | הטיפוסים המשותפים בין המודולים | | |
-| `analysis.py` | ניתוח פנייה: חילוץ פרטים ודירוג דחיפות | פנייה (`Request`) | סיכום מובנה (`RequestAnalysis`) |
+| `models.py` | הטיפוסים המשותפים בין המודולים, כולל סכמת פלט מובנה ל-LLM | | |
+| `analysis.py` | ניתוח פנייה באמצעות LLM: חילוץ פרטים ודירוג דחיפות | פנייה (`Request`) | סיכום מובנה (`RequestAnalysis`); כשל בניתוח מעלה `AnalysisError` |
 
 **כיוון המידע:** `ui.py` ← `analysis.py` ← `models.py`. הממשק לא מכיל לוגיקה של ניתוח, והניתוח לא יודע שום דבר על הממשק.
 
-### הטיפוסים (טיוטה, יאושרו יחד עם סוכן הקוד)
-- `Request`: טקסט הפנייה ושעת הקבלה.
-- `RequestAnalysis`: כתובת (או ריק אם חסרה), סוג מפגע, תיאור קצר, רמת דחיפות, הסבר לדחיפות, ורשימת שדות חסרים.
+### חוזה הטיפוסים
+- `Request`: טקסט הפנייה ושעת הקבלה; הטיפוס הקיים נשאר ללא שינוי.
+- `RequestAnalysis`: מודל `pydantic.BaseModel`, המשמש גם כ-`response_format` של ה-LLM.
+  - `address`: כתובת מזוהה או `None`.
+  - `incident_type`: אחד מהערכים `lighting`, `sanitation`, `roads`, `water`, `parks`, `other`, או `None`.
+  - `summary`: תיאור קצר או `None`.
+  - `urgency`: אחד מהערכים `low`, `medium`, `high`, או `None`.
+  - `urgency_reason`: הסבר לדחיפות או `None`.
+  - `missing_fields`: רשימה של `address`, `incident_type`, ו/או `details`.
+- `analysis.py` חושף את `analyze_request(request: Request) -> RequestAnalysis` ואת `AnalysisError`. כשלי רשת, timeout ופלט שאינו עובר אימות מתורגמים ל-`AnalysisError` עם הודעה כללית, ללא פרטי ספק.
 
-### פונקציות דמה
-`analysis.py` מתחיל כפונקציית דמה שמחזירה `RequestAnalysis` קבוע. במודול 3 היא מוחלפת בקריאה ל-LLM, בלי לשנות את הממשק שלה ובלי לשנות את `ui.py`.
+### ספק ה-LLM
+החיבור מתבצע דרך ממשק OpenAI התואם של Gemini. פרטי הספק והמודל מוגדרים בתוך `analysis.py` בלבד: כתובת הבסיס היא `https://generativelanguage.googleapis.com/v1beta/openai/`, המודל הוא `gemini-3.5-flash-lite`, והמפתח נקרא ממשתנה הסביבה `GEMINI_API_KEY` שנטען מקובץ `.env`. אין לחשוף את המפתח או פרטי שגיאה של הספק.
+
+### השפעה על הממשק
+במודול 3, החלפת פונקציית הדמה בקריאה ל-LLM מחייבת להתאים את `ui.py` לטיפוסים המצומצמים: להציג ערכי `incident_type` ו-`urgency` כאפשריים להיות `None`, ולהציג את איברי `missing_fields` כרשימה. כמו כן, הממשק צריך לטפל ב-`AnalysisError` ולהציג הודעת כשל כללית במקום להציג פרטי ספק. מעבר להתאמות הנדרשות האלה, ממשק הניתוח נשאר `analyze_request(request) -> RequestAnalysis`.
 
 ## מודולים מתוכננים לתרחישים הבאים
 
