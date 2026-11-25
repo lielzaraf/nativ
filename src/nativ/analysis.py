@@ -19,6 +19,7 @@ _MAX_RETRIES = 2
 _GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 _MODEL = "gemini-3.5-flash-lite"
 _GENERIC_ERROR_MESSAGE = "ניתוח הפנייה נכשל. נסו שוב מאוחר יותר."
+_JUNCTION_WORDS = ("צומת", "פינת")
 
 _DEVELOPER_INSTRUCTIONS = """נתח את פניית התושב והחזר את כל השדות לפי סכמת הפלט.
 
@@ -38,16 +39,19 @@ _DEVELOPER_INSTRUCTIONS = """נתח את פניית התושב והחזר את �
   מדרכה שבורה, אשפה שלא פונתה או נזילה.
 - low: מטרד, כגון גרפיטי, דשא גבוה, פנס מהבהב או ספסל שבור.
 קבע את הדחיפות לפי המפגע עצמו ולא לפי מילות התושב; למשל, "דחוף מאוד" על דשא
-גבוה אינו מצדיק urgency גבוה. אם אי אפשר לקבוע דחיפות, החזר null.
+גבוה אינו מצדיק urgency גבוה. אם אי אפשר לקבוע דחיפות, החזר null. אם חסרים
+פרטים (details ב-missing_fields), החזר urgency ו-urgency_reason כ-null.
 
 שדות חסרים (missing_fields):
-- address: אין כתובת מזוהה, הכוללת רחוב ומספר או צומת.
+- address: אין כתובת מזוהה, הכוללת רחוב ומספר או צומת. שם רחוב בלי מספר, או
+  תיאור כמו "ליד הקניון", אינו כתובת מזוהה.
 - incident_type: אי אפשר לזהות את סוג המפגע.
 - details: אין מספיק פרטים כדי להבין מה הבעיה.
 
 אל תמציא כתובת: החזר רק כתובת או צומת שמופיעים במפורש בפנייה, ואחרת החזר
 address כ-null והוסף address ל-missing_fields. אם יש כמה מפגעים, התמקד בחמור
-או המרכזי שבהם. כתוב את summary תמיד בעברית. אל תוסיף שדות שאינם בסכמה."""
+או המרכזי שבהם. כתוב את address ואת summary תמיד בעברית, גם כשהפנייה בשפה
+אחרת (למשל Ben Yehuda 5 נכתב "בן יהודה 5"). אל תוסיף שדות שאינם בסכמה."""
 
 _FEW_SHOT_MESSAGES: list[ChatCompletionMessageParam] = [
     {
@@ -153,13 +157,34 @@ def analyze_request(request: Request) -> RequestAnalysis:
     if result is None:
         raise AnalysisError(_GENERIC_ERROR_MESSAGE)
 
+    return _enforce_consistency(result)
+
+
+def _is_specific_address(address: str) -> bool:
+    """Return True if the address has a house number or names a junction."""
+    has_number = any(char.isdigit() for char in address)
+    return has_number or any(word in address for word in _JUNCTION_WORDS)
+
+
+def _enforce_consistency(result: RequestAnalysis) -> RequestAnalysis:
+    """Apply the evaluation rules in regular code after the LLM answers."""
+    updates: dict[str, object] = {}
     missing_fields = list(result.missing_fields)
-    if result.address is None and "address" not in missing_fields:
+
+    address = result.address
+    if address is not None and not _is_specific_address(address):
+        address = None
+        updates["address"] = None
+    if address is None and "address" not in missing_fields:
         missing_fields.append("address")
     if result.incident_type is None and "incident_type" not in missing_fields:
         missing_fields.append("incident_type")
 
-    if missing_fields != result.missing_fields:
-        result = result.model_copy(update={"missing_fields": missing_fields})
+    if "details" in missing_fields and result.urgency is not None:
+        updates["urgency"] = None
+        updates["urgency_reason"] = None
 
-    return result
+    if missing_fields != result.missing_fields:
+        updates["missing_fields"] = missing_fields
+
+    return result.model_copy(update=updates) if updates else result

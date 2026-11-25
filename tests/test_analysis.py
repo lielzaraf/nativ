@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from openai import OpenAIError
 from pydantic import ValidationError
 
-from nativ.analysis import AnalysisError, analyze_request
+from nativ.analysis import AnalysisError, _enforce_consistency, analyze_request
 from nativ.models import Request, RequestAnalysis
 
 
@@ -89,6 +89,48 @@ class AnalyzeRequestTests(unittest.TestCase):
                 urgency_reason=None,
                 missing_fields=["incident_type"],
             )
+
+    def test_street_without_number_is_treated_as_missing_address(self) -> None:
+        result = _enforce_consistency(
+            RequestAnalysis(
+                address="רחוב הדקל",
+                incident_type="water",
+                summary="נזילה",
+                urgency="medium",
+                urgency_reason="נזילה",
+                missing_fields=[],
+            )
+        )
+
+        self.assertIsNone(result.address)
+        self.assertEqual(result.missing_fields, ["address"])
+
+    def test_junction_without_number_is_kept(self) -> None:
+        analysis = RequestAnalysis(
+            address="צומת הדקל והאלון",
+            incident_type="roads",
+            summary="בור",
+            urgency="high",
+            urgency_reason="בור פתוח",
+            missing_fields=[],
+        )
+
+        self.assertEqual(_enforce_consistency(analysis), analysis)
+
+    def test_urgency_is_cleared_when_details_are_missing(self) -> None:
+        result = _enforce_consistency(
+            RequestAnalysis(
+                address="הדקל 3",
+                incident_type=None,
+                summary="משהו לא תקין",
+                urgency="medium",
+                urgency_reason="לא ברור",
+                missing_fields=["incident_type", "details"],
+            )
+        )
+
+        self.assertIsNone(result.urgency)
+        self.assertIsNone(result.urgency_reason)
 
 
 if __name__ == "__main__":

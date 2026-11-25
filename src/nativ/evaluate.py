@@ -24,10 +24,14 @@ def _normalize_address(value: str | None) -> str:
 
 
 def _address_matches(expected: str, actual: str | None) -> bool:
-    exp, act = _normalize_address(expected), _normalize_address(actual)
-    if not exp or not act:
-        return exp == act
-    return exp in act or act in exp
+    """Every expected street (and number) must appear in the model's address."""
+    if not expected:
+        return not actual
+    if not actual:
+        return False
+    act = _normalize_address(actual)
+    parts = re.split(r"\s*פינת\s*", expected)
+    return all(_normalize_address(part) in act for part in parts)
 
 
 def _split_missing(value: str) -> set[str]:
