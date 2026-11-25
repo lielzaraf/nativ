@@ -4,14 +4,22 @@ from datetime import datetime
 
 import gradio as gr
 
-from nativ.analysis import analyze_request
-from nativ.models import MissingField, Request, RequestAnalysis
+from nativ.analysis import AnalysisError, analyze_request
+from nativ.models import IncidentType, MissingField, Request, RequestAnalysis
 
 
-_FIELD_LABELS = {
-    MissingField.ADDRESS: "כתובת",
-    MissingField.INCIDENT_TYPE: "סוג המפגע",
-    MissingField.DETAILS: "פרטים על המפגע",
+_FIELD_LABELS: dict[MissingField, str] = {
+    "address": "כתובת",
+    "incident_type": "סוג המפגע",
+    "details": "פרטים על המפגע",
+}
+_INCIDENT_TYPE_LABELS: dict[IncidentType, str] = {
+    "lighting": "חשמל ותאורה",
+    "sanitation": "תברואה וניקיון",
+    "roads": "כבישים ומדרכות",
+    "water": "מים וביוב",
+    "parks": "גינון ועצים",
+    "other": "אחר",
 }
 _URGENCY_LABELS = {"low": "נמוכה", "medium": "בינונית", "high": "גבוהה"}
 
@@ -26,9 +34,13 @@ def format_analysis(analysis: RequestAnalysis) -> str:
         A readable Hebrew summary of the request and any missing information.
     """
     address = analysis.address or "לא צוין"
-    incident_type = analysis.incident_type or "לא צוין"
+    incident_type = (
+        _INCIDENT_TYPE_LABELS[analysis.incident_type]
+        if analysis.incident_type
+        else "לא צוין"
+    )
     summary = analysis.summary or "לא ניתן להפיק תיאור קצר"
-    urgency = _URGENCY_LABELS[analysis.urgency.value] if analysis.urgency else "לא נקבעה"
+    urgency = _URGENCY_LABELS[analysis.urgency] if analysis.urgency else "לא נקבעה"
     urgency_reason = analysis.urgency_reason or "לא נמסר הסבר"
 
     lines = [
@@ -57,7 +69,10 @@ def analyze_text(text: str) -> str:
         A Hebrew presentation of the analysis result.
     """
     request = Request(text=text, received_at=datetime.now().astimezone())
-    return format_analysis(analyze_request(request))
+    try:
+        return format_analysis(analyze_request(request))
+    except AnalysisError:
+        return "ניתוח הפנייה נכשל. נסו שוב מאוחר יותר."
 
 
 demo = gr.Interface(
