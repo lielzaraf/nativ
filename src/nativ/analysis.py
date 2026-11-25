@@ -14,8 +14,8 @@ from pydantic import ValidationError
 from nativ.models import Request, RequestAnalysis
 
 
-_REQUEST_TIMEOUT_SECONDS = 240
-_MAX_RETRIES = 0
+_REQUEST_TIMEOUT_SECONDS = 30
+_MAX_RETRIES = 2
 _GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 _MODEL = "gemini-3.5-flash-lite"
 _GENERIC_ERROR_MESSAGE = "ניתוח הפנייה נכשל. נסו שוב מאוחר יותר."
